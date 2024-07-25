@@ -22,6 +22,7 @@ md"""
 To install and work with the same environment i.e. package version just do the following in the same folder as the `Project.toml` (and optionally also a `Manifest.toml`)
 ```julia
 import Pkg
+Pkg.pkg"registry add https://github.com/dmetivie/LocalRegistry" # where I currently store `ABCConformal.jl` and `ConcreteDropoutLayer.jl` packages
 Pkg.activate(".")
 Pkg.instantiate()
 ```
@@ -29,19 +30,23 @@ Pkg.instantiate()
 
 using ABCConformal
 
+md"""
+Some generic packages
+"""
+
 using DataFrames, DataFramesMeta
 
 using Random
 
 using Distributions
 
-using JumpProcesses # has Gillespie Methods
-
-using Catalyst # Fancy model definition
-
 using StatsPlots, LaTeXStrings
 
 default(fontfamily="Computer Modern")
+
+md"""
+Deep Learning packages
+"""
 
 using MLUtils
 using Lux
@@ -50,7 +55,15 @@ dev = gpu_device() # cpu_device()
 using Lux: freeze
 ## using Optimisers, Zygote # only if you need more control on Optimiszer and AD
 ## using Accessors # to change nested structures. Useful to play with Lux.TrainState
-using ConcreteDropoutLayer # t
+using ConcreteDropoutLayer 
+
+md"""
+## Specific to Lokta Voltera example
+"""
+
+using JumpProcesses # has Gillespie Methods
+
+using Catalyst # Fancy model definition
 
 
 md"""
@@ -73,8 +86,15 @@ end
 md"""
 ### Simulator
 
-To make things challenging for an inference standpoint we only keep simulations with strictly positive number Prey and Predator number.
-This would compa
+To make things challenging for an inference standpoint[^loglik], we only keep simulations with strictly positive number Prey and Predator number.
+
+We use the Gillespie algorithm (1977) and the Julia implementation with [JumpProcesses.jl](https://docs.sciml.ai/JumpProcesses/stable/) package.
+Note that compared to the `R` package [GillespieSSA2](https://github.com/rcannood/GillespieSSA2) we rougthly have a `x130` speedup with Julia.
+In addition it is much more stable i.e. it handles better divergin trajectories. In our `R` version we had to use (for time constrains) the approximated `ssa_etl(tau = 1e-2)` method. 
+It produces a significantly different distribution of non zero trajectory (smaller variance) when compared to the `ssa_exact()` (`Direct()` in Julia) method, making the inference problem easier.
+
+
+[^loglik]: In particular, any likelihood based method would be intractable. 
 """
 
 condition(u, t, integrator) = u[2] == 0
@@ -87,7 +107,7 @@ function output_func(sol, i)
     (θ=sol.prob.p, y=sol.u), false
 end
 
-function sample_from_θ(N, distθ::Distribution; saveat=2.0, tspan=(0.0, 36.0), u₀=[:PREY => 50, :PREDATOR => 100], jump_model=LK_model, more=1000, batch_size= ifelse(3N > 10^5, 10^5, 3N), cb=cb)
+function sample_from_θ(N, distθ::Distribution; saveat=2.0, tspan=(0.0, 36.0), u₀=[:PREY => 50, :PREDATOR => 100], jump_model=LK_model, more=1000, batch_size=ifelse(3N > 10^5, 10^5, 3N), cb=cb)
     θ = exp.(rand(distθ, more * N))
     p = (:α => 0.0, :β => 0.0, :γ => 0.0)
     n = Integer(tspan[end] ÷ saveat + 1)
@@ -120,7 +140,7 @@ md"""
 # Simulation of the parameters and of the datasets
 """
 
-Random.seed!(1234)
+Random.seed!(MersenneTwister(0))
 
 md"""
 ## Samples
@@ -128,6 +148,9 @@ md"""
 
 md"""
 ### Create training/test/validation/calibration sets
+
+The three parameters prior is the same as in [D Prangle - 2017](https://projecteuclid.org/journals/bayesian-analysis/volume-12/issue-1/Adapting-the-ABC-Distance-Function/10.1214/16-BA1002.full).
+
 """
 
 dist = product_distribution([Uniform(-6, 2), Uniform(-6, 2), Uniform(-6, 2)])
@@ -170,7 +193,7 @@ Most deep learning framework (Lux.jl, Pytorch, TensorFlow) works with Floats. In
 
 batch_size = 128
 data_train = DataLoader((y_train .|> Float32, θ_train_Norm .|> Float32), batchsize=batch_size)
-data_val = (y_val  .|> Float32, θ_val_Norm .|> Float32)
+data_val = (y_val .|> Float32, θ_val_Norm .|> Float32)
 
 md"""
 ## Standard ABC
@@ -180,7 +203,7 @@ md"""
 
 abc_method = ABC_Nearestneighbours(α_ABC, 𝕃2)
 
-@time "ABC" results_posterior_abc = [ABC_selection(y, y_train, θ_train_Norm, abc_method) for y in eachslice(y_test, dims = 3)] # the iteration depends on the format of y_test
+@time "ABC" results_posterior_abc = ABC_selection(y_test, y_train, θ_train_Norm, abc_method)
 
 md"""
 ### Results
@@ -194,7 +217,7 @@ let
 
     plt_abc = [@df df plot(range(extrema([:θ; :θ_hat])..., length=10), range(extrema([:θ; :θ_hat])..., length=10), xlabel="True", ylabel="Estimated ", c=:red, s=:dot, lw=2, label=:none, aspect_ratio=true) for (i, df) in enumerate(dfs)]
     [@df df plot!(plt_abc[i], :θ[orders[i]], :q_low[orders[i]], fill=(:q_high[orders[i]], 0.4, :gray), label=:none, lw=0) for (i, df) in enumerate(dfs)]
-    [@df df scatter!(plt_abc[i], :θ, :θ_hat, label=:none, c=1, alpha=0.75, left_margin = 4Plots.Measures.mm) for (i, df) in enumerate(dfs)]
+    [@df df scatter!(plt_abc[i], :θ, :θ_hat, label=:none, c=1, alpha=0.75, left_margin=4Plots.Measures.mm) for (i, df) in enumerate(dfs)]
 
     plot(plt_abc..., layout=(1, 3), size=(800, 600))
 end
@@ -230,7 +253,7 @@ end
 epochs_CNN = 100
 
 model_CNN = build_modelCNN(dim_y, dim_θ)
-@time "Training ABC CNN" model_state_out_CNN, loss_train, loss_val = train_NN(model_CNN, epochs_CNN, data_train, data_val, compute_loss_mse; dev = dev)
+@time "Training ABC CNN" model_state_out_CNN, loss_train, loss_val = train_NN(model_CNN, epochs_CNN, data_train, data_val, compute_loss_mse; dev=dev)
 
 md"""
 Plot training loss
@@ -270,7 +293,7 @@ let
     plt_abc_cnn = [@df df plot(range(extrema([:θ; :θ_hat])..., length=10), range(extrema([:θ; :θ_hat])..., length=10), xlabel="True", ylabel="Estimated ", c=:red, s=:dot, lw=2, label=:none, aspect_ratio=true) for (i, df) in enumerate(dfs)]
     [@df df plot!(plt_abc_cnn[i], :θ[orders[i]], :q_low[orders[i]], fill=(:q_high[orders[i]], 0.4, :gray), label=:none, lw=0) for (i, df) in enumerate(dfs)]
     [@df df scatter!(plt_abc_cnn[i], :θ, :θ_hat, label=L"c_%$i", c=1, alpha=0.75) for (i, df) in enumerate(dfs)]
-    plot(plt_abc_cnn..., layout=(1, 3), size=(800, 600), left_margin = 4Plots.Measures.mm)
+    plot(plt_abc_cnn..., layout=(1, 3), size=(800, 600), left_margin=4Plots.Measures.mm)
 end
 
 md"""
@@ -295,20 +318,20 @@ md"""
 function build_modelCNN_CD_freeze(dim_input, dim_output)
     Lux.Chain(
         Conv((2,), dim_input => 128, tanh) |> freeze, # Conv1D
-        ConcreteDropout(; dims = (2,3)), # ConcreteDropout1D
+        ConcreteDropout(; dims=(2, 3)), # ConcreteDropout1D
         MaxPool((2,)),
         Conv((2,), 128 => 128, tanh) |> freeze,
-        ConcreteDropout(; dims = (2,3)),
+        ConcreteDropout(; dims=(2, 3)),
         MaxPool((2,)),
         FlattenLayer(),
         Dense(512 => 128, tanh) |> freeze,
         ConcreteDropout(),
-        Dense(128 => 128, tanh) |> freeze,		
+        Dense(128 => 128, tanh) |> freeze,
         ConcreteDropout(),
-        Parallel(nothing, 
+        Parallel(nothing,
             Lux.Chain(Dense(128 => dim_output) |> freeze, ConcreteDropout()), # mean
             Lux.Chain(Dense(128 => dim_output), ConcreteDropout())  # logvar
-            )		
+        )
     )
 end
 
@@ -316,29 +339,30 @@ model_CNN_CD_freeze = build_modelCNN_CD_freeze(dim_y, dim_θ)
 model_state_out_CD_ini = ini_manually_CNN2CD(model_CNN_CD_freeze, model_state_out_CNN)
 
 epochs_CD = 50
-@time "Training ABC ConcreteDropout freeze" model_state_out_CD, loss_train_CD, loss_val_CD = train_NN(model_state_out_CD_ini, epochs_CD, data_train, data_val, compute_loss_heteroscedastic; dev = gpu_device())
+@time "Training ABC ConcreteDropout freeze" model_state_out_CD, loss_train_CD, loss_val_CD = train_NN(model_state_out_CD_ini, epochs_CD, data_train, data_val, compute_loss_heteroscedastic; dev=gpu_device())
 
 md"""
 Compute MSE loss only (not heteroscedastic loss)
 """
-println("MSE CD ", MSELoss()(first(model_state_out_CD.model(y_val .|> Float32 |> dev, model_state_out_CD.parameters, model_state_out_CD.states) |> first |> cpu_device()), θ_val_Norm .|> Float32))
+println("MSE CNN only ", MSELoss()(first(model_state_out_CNN.model(y_val .|> Float32 |> dev, model_state_out_CNN.parameters, model_state_out_CNN.states) |> cpu_device()), θ_val_Norm .|> Float32))
+println("MSE with Concrete Dropout and heterocedastic loss ", MSELoss()(first(model_state_out_CD.model(y_val .|> Float32 |> dev, model_state_out_CD.parameters, model_state_out_CD.states) |> first |> cpu_device()), θ_val_Norm .|> Float32))
 
 md"""
 Print all learned Dropout rates.
 """
 path_cd = regularization_infos(model_state_out_CD, true)
-println.(path_cd," ", get_regularization(model_state_out_CD.parameters, path_cd))
+println.(path_cd, " ", get_regularization(model_state_out_CD.parameters, path_cd));
 
 md"""
 ### MC Predict
 """
 
-@time MC_test = MC_predict(model_state_out_CD, y_test .|> Float32, 1000; dim_out = dim_θ)
+@time MC_test = MC_predict(model_state_out_CD, y_test .|> Float32, 1000; dim_out=dim_θ)
 
 md"""
 Same for the calibration set
 """
-@time MC_cal = MC_predict(model_state_out_CD, y_cal .|> Float32, 1000, dim_out = dim_θ)
+@time MC_cal = MC_predict(model_state_out_CD, y_cal .|> Float32, 1000, dim_out=dim_θ)
 
 md"""
 ### Conformal
@@ -354,34 +378,63 @@ md"""
 let
     dfs = df_cd_test_conformal
     orders = [sortperm(df.θ) for df in dfs]
-    
+
     plt_abc_c = [@df df plot(range(extrema([:θ; :θ_hat])..., length=10), range(extrema([:θ; :θ_hat])..., length=10), xlabel="True", ylabel="Estimated ", c=:red, s=:dot, lw=2, label=:none, aspect_ratio=true) for (i, df) in enumerate(dfs)]
     [@df df plot!(plt_abc_c[i], :θ[orders[i]], :q_low[orders[i]], fill=(:q_high[orders[i]], 0.4, :gray), label=:none, lw=0) for (i, df) in enumerate(dfs)]
     [@df df scatter!(plt_abc_c[i], :θ, :θ_hat, label=L"c_%$i", c=1, alpha=0.75) for (i, df) in enumerate(dfs)]
-    
+
     plot(plt_abc_c..., layout=(1, 3), size=(800, 600))
 end
 
+md"""
+Summary metrics for the method
+"""
 summary_abc_conformal = summary_method.(df_cd_test_conformal)
 
 
 md"""
-# Final Results
+# Comparison of all methods
 """
 using PrettyTables
 df_results = map(1:dim_θ) do i
     vcat(summary_abc[i], summary_abc_cnn[i], summary_abc_conformal[i])
 end
 
-hl_min(col) = MarkdownHighlighter(
-           (data, i, j) -> (j == col) && data[i, col] == minimum(data[:, col]),
-           MarkdownDecoration(bold = true)
+hl_min(col) = HtmlHighlighter(
+    (data, i, j) -> (j == col) && data[i, col] == minimum(data[:, col]),
+    ## MarkdownDecoration(bold=true)
+    HtmlDecoration(color = "blue", font_weight = "bold")
+    ## crayon"blue bold"
 )
 
+hl_method = HtmlHighlighter(
+           (data, i, j) -> (j == 1),
+           HtmlDecoration(color = "red")
+)
 for i in 1:dim_θ
-pretty_table(
-    df_results[i];
-           backend = Val(:markdown),
-           highlighters = (hl_min(1), hl_min(2), hl_min(3), hl_min(4))
-       )
+    pretty_table(
+        hcat(["ABC", "ABC CNN", "ABC Conformal"], Matrix(df_results[i]));
+        ##    backend = Val(:markdown),
+        backend = Val(:html),
+        standalone = true,
+        highlighters=(hl_method, hl_min(2), hl_min(3), hl_min(4), hl_min(5)),
+        ## border_crayon=crayon"yellow",
+        formatters=ft_printf("%5.2f", 2:4),
+        ##    tf            = tf_unicode_rounded,           
+        header=vcat("c$i  Method", names(df_results[i]))
+    )
+end
+
+md"""
+Julia settings
+"""
+
+using InteractiveUtils
+InteractiveUtils.versioninfo()
+
+if @isdefined(LuxDeviceUtils)
+    if @isdefined(CUDA) && LuxDeviceUtils.functional(LuxCUDADevice)
+        println()
+        CUDA.versioninfo()
+    end
 end
