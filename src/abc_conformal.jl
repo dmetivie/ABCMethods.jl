@@ -2,7 +2,37 @@
 	MC_predict(model, X::AbstractArray{T}; n_samples=1000, kwargs...)
 For each X it returns `n_samples` monte carlo simulations where the randomness comes from the (Concrete)Dropout layers.
 """
-function MC_predict(model_state, X::AbstractArray, n_samples=1000; dev = gpu_device(), dim_out = model_state.model[end].layers[1].out_dims)
+function MC_predict_MultiDim(model_state, X::AbstractArray, n_samples=1000; dev=gpu_device(), dim_out=model_state.model[end].layers[1].out_dims)
+    st = model_state.states
+    ps = model_state.parameters
+    model = model_state.model
+
+    dim_N = ndims(X)
+    mean_arr = similar(X, dim_out, size(X, dim_N))
+    var_dev_arr = similar(X, dim_out, dim_out, size(X, dim_N))
+
+    X = X |> dev
+    X_in = similar(X, size(X)[1:end-1]..., n_samples) |> dev
+
+    for (i, x) in enumerate(eachslice(X, dims=dim_N, drop=false))
+        X_in .= x
+
+        predictions, st = model(X_in, ps, st)
+        θs_MC, logvars = predictions |> cpu_device()
+
+        θ_hat = mean(θs_MC, dims=2) # predictive_mean 
+        θ2_hat = mean(c * c' for c in eachcol(θs_MC)) # multidim
+        var_mean = Diagonal(mean(exp.(logvars), dims=2) |> vec) # aleatoric_uncertainty 
+        total_var = θ2_hat - θ_hat * θ_hat' + var_mean # epistemic + aleatoric uncertainty
+
+        mean_arr[:, i] .= θ_hat
+        var_dev_arr[:, :, i] .= total_var
+    end
+
+    return mean_arr, var_dev_arr
+end
+
+function MC_predict(model_state, X::AbstractArray, n_samples=1000; dev=gpu_device(), dim_out=model_state.model[end].layers[1].out_dims)
     st = model_state.states
     ps = model_state.parameters
     model = model_state.model
@@ -13,17 +43,16 @@ function MC_predict(model_state, X::AbstractArray, n_samples=1000; dev = gpu_dev
 
     X = X |> dev
     X_in = similar(X, size(X)[1:end-1]..., n_samples) |> dev
-    
 
-    for (i, x) in enumerate(eachslice(X, dims=dim_N, drop = false))
-        X_in .= x 
-    
+    for (i, x) in enumerate(eachslice(X, dims=dim_N, drop=false))
+        X_in .= x
+
         predictions, st = model(X_in, ps, st)
         θs_MC, logvars = predictions |> cpu_device()
 
         θ_hat = mean(θs_MC, dims=2) # predictive_mean 
 
-        θ2_hat = mean(θs_MC .^ 2, dims=2) # θ2_hat = mean(θs_MC' * θs_MC, dims=2)
+        θ2_hat = mean(θs_MC .^ 2, dims=2) # unidim (only variance on diagonals)
         var_mean = mean(exp.(logvars), dims=2) # aleatoric_uncertainty 
         total_var = θ2_hat - θ_hat .^ 2 + var_mean
         std_dev = sqrt.(total_var)
@@ -39,27 +68,28 @@ end
 	MC2df(predictive_mean, overall_uncertainty, true_θ)
 Return a DataFrame with the following column `["θ", "θ_hat", "σ_tot"]`
 """
-MC2df(predictive_mean, overall_uncertainty, true_θ) = [DataFrame(hcat(true_θ[i,:], predictive_mean[i,:], overall_uncertainty[i,:]), ["θ", "θ_hat", "σ_tot"]) for i in axes(true_θ, 1)]
+MC2df(predictive_mean, overall_uncertainty, true_θ) = [DataFrame(hcat(true_θ[i, :], predictive_mean[i, :], overall_uncertainty[i, :]), ["θ", "θ_hat", "σ_tot"]) for i in axes(true_θ, 1)]
 
 # Conformal functions
 
 """
-	q_hat_conformal(x_true, x_hat, α, σ = 1)
-Estimate the conformal quantile of level α. To compute the score σ can be specified as a vecor or number. σ is a proxy for our confidence on the estimation.
+	q_hat_conformal(x_true::AbstractVector, x_hat::AbstractVector, α, σ=1)
+    q_hat_conformal(x_true::AbstractMatrix, x_hat::AbstractMatrix, α, V::AbstractArray)
+    q_hat_conformal(MC_cal::Tuple, θ_cal, α)
+Estimate the conformal quantile of level `α`. To compute the score σ can be specified as a vecor or number. `σ` is a proxy for our confidence on the estimation.
 """
-function q_hat_conformal(x_true, x_hat, α, σ=1)
+function q_hat_conformal(x_true::AbstractVector, x_hat::AbstractVector, α, σ=1)
     n = length(x_true)
     q_level = ceil((n + 1) * (1 - α)) / n
     score = abs.(x_true - x_hat) ./ σ
     return sort(score)[ceil(Int, n * q_level)]
 end
 
-
 """
 	conformilize!(df_test, df_cal, α)
 Given two DataFrame one of test `df_test` and one of calibration `df_cal`, it estimate (and add in place) the conformal quantile low/hight for each observation.
 """
-function conformilize!(df_test, df_cal, α)
+function conformilize!(df_test::DataFrame, df_cal::DataFrame, α)
     q̂ = q_hat_conformal(df_cal.:θ, df_cal.:θ_hat, α, df_cal.:σ_tot)
     @transform!(df_test,
         :q_low = :θ_hat - q̂ * :σ_tot,
@@ -74,10 +104,24 @@ function conformilize(df_test, df_cal, α)
 end
 
 function conformilize(MC_test::NTuple{2}, MC_cal::NTuple{2}, θ_test, θ_cal, α_conformal)
-    df_cal = MC2df(MC_cal..., θ_cal);
+    df_cal = MC2df(MC_cal..., θ_cal)
     df_cd_test_conformal = MC2df(MC_test..., θ_test)
 
     conformilize!.(df_cd_test_conformal, df_cal, α_conformal)
 
     return df_cd_test_conformal
+end
+
+score_MultiDim(x_true, x_hat, V) = @views sqrt.([(x_true[:,i] - x_hat[:,i])' * inv(V[:,:,i]) * (x_true[:,i] - x_hat[:,i]) for i in axes(x_true, 2)])
+
+function q_hat_conformal(x_true::AbstractMatrix, x_hat::AbstractMatrix, α, V::AbstractArray)
+    n = size(x_true, 2)
+    score = score_MultiDim(x_true, x_hat, V)
+    q_level = ceil((n + 1) * (1 - α)) / n
+    return sort(score)[ceil(Int, n * q_level)]
+end
+
+function q_hat_conformal(MC_cal::Tuple, θ_cal, α_conformal)
+    xcal, Vcal = MC_cal
+    return q_hat_conformal(θ_cal, xcal, α_conformal, Vcal)
 end

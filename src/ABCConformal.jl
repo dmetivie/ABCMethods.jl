@@ -4,9 +4,8 @@ using DataFrames, DataFramesMeta
 using StatsBase
 
 using Lux # Deep Learning package
+using Lux.Training: TrainState
 using Optimisers
-using Zygote # AD package
-using Accessors # Play with nested struc
 using Random
 using LinearAlgebra: Diagonal, dot
 using HighestDensityRegions, KernelDensity
