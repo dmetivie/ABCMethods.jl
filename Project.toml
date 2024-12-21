@@ -1,20 +1,24 @@
 name = "ABCConformal"
 uuid = "6a06312b-1f35-42d8-b2e0-a51b61531d54"
 authors = ["David Métivier <david.metivier@inrae.fr>"]
-version = "1.0.1-DEV"
+version = "1.0.2-DEV"
 
 [deps]
-Accessors = "7d9f7c33-5ae7-4f3b-8dc6-eff91059b697"
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
 DataFramesMeta = "1313f7d8-7da2-5740-9ea0-a2ca25f37964"
+HighestDensityRegions = "ac8b01d9-0237-5573-85ad-ea456511aa8e"
+KernelDensity = "5ab0869b-81aa-558d-bb23-cbf5423bbe9b"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 Lux = "b2108857-7c20-44ae-9111-449ecde12c47"
 Optimisers = "3bd65402-5787-11e9-1adc-39752487f4e2"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
-Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
 
 [compat]
-julia = "1.6.7"
+HighestDensityRegions = "0.2.2"
+KernelDensity = "0.6.9"
+LinearAlgebra = "1.11.0"
+julia = "1"
 
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
