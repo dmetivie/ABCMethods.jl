@@ -8,6 +8,8 @@ using Optimisers
 using Zygote # AD package
 using Accessors # Play with nested struc
 using Random
+using LinearAlgebra: Diagonal, dot
+using HighestDensityRegions, KernelDensity
 
 include("abc.jl")
 include("abc_conformal.jl")
@@ -18,8 +20,10 @@ include("NN.jl")
 export my_norm, my_unnorm
 export summary_method, 𝕃2
 export ABC_Nearestneighbours, ABC_selection, ABC2df
-export train_NN, compute_loss_heteroscedastic, compute_loss_heteroscedastic_w_reg, compute_loss_mse, ini_manually_CNN2CD
-export MC_predict
+export train_NN
+export compute_loss_heteroscedastic, compute_loss_mse, heteroscedastic_loss
+export MC_predict, MC_predict_MultiDim, q_hat_conformal 
+export inHDR, inABCellipse, confidence_ellipse2D, score_MultiDim
 export conformilize
 
 end
