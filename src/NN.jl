@@ -1,23 +1,11 @@
 # Training 
 
 """
-	train(model, epochs, dataset, dataset_val, compute_loss; learning_rate=0.001f0, dev = cpu_device())
-Train the `model` and comute at each epoch the training and testing loss
+	train_NN([rng], model, epochs, dataset, dataset_val, compute_loss; opt=Adam(0.001f0), dev = cpu_device(), adtype)
+	train_NN(train_state, epochs, dataset, dataset_val, compute_loss; dev = cpu_device(), adtype)
+Train the `model` or `train_state` and comute at each epoch the training and testing loss.
 """
-function train_NN(model::Lux.Chain, epochs, dataset, dataset_val, compute_loss; learning_rate=0.001f0, dev = cpu_device())
-    ## Set up models
-    rng = Xoshiro(0)
-
-    train_state = Lux.Experimental.TrainState(rng, model, Adam(learning_rate); transform_variables=dev)
-
-    return train_NN(train_state, epochs, dataset, dataset_val, compute_loss; dev = dev)
-end
-
-"""
-	train(model, epochs, dataset, dataset_val, compute_loss; learning_rate=0.001f0, dev = cpu_device())
-Train the `model` and comute at each epoch the training and testing loss
-"""
-function train_NN(train_state::Lux.Experimental.TrainState, epochs, dataset, dataset_val, compute_loss; dev = cpu_device())
+function train_NN(train_state::TrainState, epochs, dataset, dataset_val, compute_loss; dev = cpu_device(), adtype)
     ps = train_state.parameters
     st = train_state.states
     model = train_state.model
@@ -34,7 +22,7 @@ function train_NN(train_state::Lux.Experimental.TrainState, epochs, dataset, dat
         issave = false
         for xy in dataset
             xy = xy |> dev
-            loss, train_state = train_step(train_state, xy, compute_loss)
+            loss, train_state = train_step(train_state, xy, compute_loss; adtype = adtype)
         end
         ps = train_state.parameters
         st = train_state.states
@@ -50,16 +38,28 @@ function train_NN(train_state::Lux.Experimental.TrainState, epochs, dataset, dat
     return best_test_state, losses_train, losses_val
 end
 
-function train_step(train_state, xy, compute_loss)
+function train_NN(rng::AbstractRNG, model, epochs, dataset, dataset_val, compute_loss; opt=Adam(0.001f0), dev = cpu_device(), adtype)
+    ## Set up models
+    
+    ps, st = Lux.setup(rng, model) |> dev    
+
+    train_state = TrainState(model, ps, st, opt)
+    return train_NN(train_state, epochs, dataset, dataset_val, compute_loss; dev = dev, adtype = adtype)
+end
+
+train_NN(model, epochs, dataset, dataset_val, compute_loss; opt=Adam(0.001f0), dev = cpu_device(), adtype) = train_NN(Random.Xoshiro(0), model, epochs, dataset, dataset_val, compute_loss; opt=opt, dev = dev, adtype = adtype)
+
+function train_step(train_state, xy, compute_loss; adtype)
     ## Calculate the gradient of the objective
     ## with respect to the parameters within the model:
     x, y = xy
     
-    gs, loss, _, train_state = Lux.Experimental.compute_gradients(
-                AutoZygote(), compute_loss, (x, y), train_state
-    )
-    train_state = Lux.Experimental.apply_gradients(train_state, gs)
-
+    # gs, loss, _, train_state = Lux.Training.compute_gradients(
+    #             AutoZygote(), compute_loss, (x, y), train_state
+    # )
+    # train_state = Lux.Training.apply_gradients(train_state, gs)
+    # New Lux v1 API
+    gs, loss, stats, train_state = Training.single_train_step!(adtype, compute_loss, (x, y), train_state)
     return loss, train_state
 end
 
@@ -82,48 +82,4 @@ function compute_loss_mse(model, ps, st, (x, y))
     # Generate the model predictions.
     ŷ, st = model((x), ps, st)
     return mse(ŷ, y), st, ()
-end
-
-"""
-Loss with regularization
-Version with the added regularization suggested in the original paper. `(names_CD, names_W, input_features), λp, λW` are provided and constant during the training.
-"""
-function compute_loss_heteroscedastic_w_reg(model, ps, st, (x, y), (names_CD, names_W, input_features)::NTuple{3}, λp, λW)
-    ŷ, st = model(x, ps, st)
-    drop_rates, W = get_regularization(ps, names_CD, names_W)
-
-    return heteroscedastic_loss(ŷ, y) + computeCD_reg(drop_rates, W, input_features, λp, λW), st, ()
-end
-
-function compute_loss_heteroscedastic_w_reg(model, ps, st, (x, y), (names_CD, input_features)::NTuple{2}, λp)
-    ŷ, st = model(x, ps, st)
-    drop_rates = get_regularization(ps, names_CD)
-
-    return heteroscedastic_loss(ŷ, y) + computeCD_reg(drop_rates, input_features, λp), st, ()
-end
-
-
-# Conversion 
-# TODO: Dirty
-"""
-    Create a `train_state` where all weigths common to the `model_state_out_CNN` are initialized and frozen.
-    **Warning** This function has to be change depending on the design of the models.
-"""
-function ini_manually_CNN2CD(model_CNN_CD, model_state_out_CNN)
-    rng = Xoshiro(0)
-    dev =  !isa(model_state_out_CNN.parameters.layer_1.weight, Array) ? gpu_device() : cpu_device()
-    optimizer = model_state_out_CNN.optimizer
-    train_state = Lux.Experimental.TrainState(rng, model_CNN_CD, optimizer; transform_variables=dev)
-
-    @reset train_state.states.layer_1.frozen_params.weight = model_state_out_CNN.parameters.layer_1.weight
-    @reset train_state.states.layer_1.frozen_params.bias = model_state_out_CNN.parameters.layer_1.bias
-    @reset train_state.states.layer_4.frozen_params.weight = model_state_out_CNN.parameters.layer_3.weight
-    @reset train_state.states.layer_4.frozen_params.bias = model_state_out_CNN.parameters.layer_3.bias
-    @reset train_state.states.layer_8.frozen_params.weight = model_state_out_CNN.parameters.layer_6.weight
-    @reset train_state.states.layer_8.frozen_params.bias = model_state_out_CNN.parameters.layer_6.bias
-    @reset train_state.states.layer_10.frozen_params.weight = model_state_out_CNN.parameters.layer_7.weight
-    @reset train_state.states.layer_10.frozen_params.bias = model_state_out_CNN.parameters.layer_7.bias
-    @reset train_state.states.layer_12.layer_1.layer_1.frozen_params.weight = model_state_out_CNN.parameters.layer_8.weight
-    @reset train_state.states.layer_12.layer_1.layer_1.frozen_params.bias = model_state_out_CNN.parameters.layer_8.bias
-    return train_state
 end
