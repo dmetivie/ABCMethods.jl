@@ -1,4 +1,4 @@
-module ABCConformal
+module ABCMethods
 
 using DataFrames, DataFramesMeta
 using StatsBase
@@ -24,7 +24,7 @@ export ABC_NearestNeighbours, ABC_selection, ABC2df
 export train_NN
 export compute_loss_heteroscedastic, compute_loss_mse, heteroscedastic_loss
 export MC_predict, MC_predict_MultiDim, q_hat_conformal 
-export inHDR, inABCEllipsoid, ABCEllipsoidArea, inABCRectangle, ABCRectangleArea
+export inHDR, inABCEllipsoid, AreaABCEllipsoid, inABCRectangle, AreaABCRectangle
 export score_MultiDim
 export ellipsoid_area, ellipsoid
 export conformilize

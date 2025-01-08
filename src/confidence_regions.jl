@@ -137,7 +137,7 @@ function inABCEllipsoid(ABCresults::AbstractVector, θ_test::AbstractMatrix, thr
     return count(InOrNot) / N
 end
 
-function ABCEllipsoidArea(ABCresults::AbstractVector, thr)
+function AreaABCEllipsoid(ABCresults::AbstractVector, thr)
     N = length(ABCresults)
     area = zeros(N)
     for (i, x) in enumerate(ABCresults)
@@ -176,7 +176,7 @@ end
 #* Rectangle *#
 
 inABCRectangle(df_results) = count(prod(hcat([df.:q_low .≤ df.:θ .≤ df.:q_high for df in df_results]...), dims=2)) / nrow(df_results[1])
-ABCRectangleArea(df_results) = prod(hcat([df.:q_high - df.:q_low for df in df_results]...), dims=2)
+AreaABCRectangle(df_results) = prod(hcat([df.:q_high - df.:q_low for df in df_results]...), dims=2)
 
 # """
 #     confidence_ellipse2D(x::AbstractVector, y::AbstractVector, s; n_points = 100)
@@ -252,9 +252,9 @@ ABCRectangleArea(df_results) = prod(hcat([df.:q_high - df.:q_low for df in df_re
 #     σ2 = sqrt(cov_matrix[2, 2])
 #     return sqrt(1-ρ^2)*σ1*σ2*s^2
 # end
-# aa = [ABCConformal.areaellipse(results_posterior_cnn[i]',quantile(Chi(2), 0.95))
+# aa = [ABCMethods.areaellipse(results_posterior_cnn[i]',quantile(Chi(2), 0.95))
 # for i in eachindex(results_posterior_cnn)]
-# bb = [ABCConformal.areaellipseΣ(MC_testD[2][:, :, i],qhatD) for i in eachindex(results_posterior_cnn)]
+# bb = [ABCMethods.areaellipseΣ(MC_testD[2][:, :, i],qhatD) for i in eachindex(results_posterior_cnn)]
 # a = score_MultiDim(θ_test_Norm, MC_testD...) .< qhatD
 # b = prod(hcat([df.:q_low .≤ df.:θ .≤ df.:q_high for df in df_cnn_result]...), dims=2)
 # sortperm(bb)

@@ -1,4 +1,4 @@
-# ABCConformal
+# ABCMethods
 
 A julia package to use easily the ABC-Conformal method described in the paper[^paper]. It use Approximate Bayesian Computation (ABC) with deep learning and conformal prediction.
 It is **loglikelihood free** bayesian method and to authors knowledge it is the first ABC-like method without summary statistics. 

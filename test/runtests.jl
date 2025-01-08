@@ -1,6 +1,6 @@
-using ABCConformal
+using ABCMethods
 using Test
 
-@testset "ABCConformal.jl" begin
+@testset "ABCMethods.jl" begin
     # Write your tests here.
 end
