@@ -1,9 +1,10 @@
 [deps]
-ABCConformal = "6a06312b-1f35-42d8-b2e0-a51b61531d54"
+ABCMethods = "6a06312b-1f35-42d8-b2e0-a51b61531d54"
 ConcreteDropoutLayer = "cefad46e-21aa-447d-abc5-91039c0799ef"
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
 DataFramesMeta = "1313f7d8-7da2-5740-9ea0-a2ca25f37964"
 Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
+JLD2 = "033835bb-8acc-5ee8-8aae-3f567f8a3819"
 LaTeXStrings = "b964fa9f-0449-5b57-a5c2-d3ea65f4040f"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 Lux = "b2108857-7c20-44ae-9111-449ecde12c47"
