@@ -67,3 +67,6 @@ function ABC2df(results, θ_test; q_min=0.025, q_max=0.975)
     qs_max = reduce(hcat, [[quantile(r, q_max) for r in eachrow(S)] for S in results])
     return [DataFrame(hcat(θ_test[i, :], θs_hat[i, :], qs_min[i, :], qs_max[i, :]), ["θ", "θ_hat", "q_low", "q_high"]) for i in axes(θ_test, 1)]
 end
+
+distanceABC(y, ŷ, abc::ABC_NearestNeighbours) = abc.∇(abc.η(ŷ), abc.η(y))
+distanceABC(y, ŷ, abc::ABC_NearestNeighboursL2) = abc.∇(ŷ, y)
