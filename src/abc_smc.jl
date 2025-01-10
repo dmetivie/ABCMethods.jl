@@ -18,10 +18,10 @@ function ABC_SMC(N, dist_prior, simulate_and_distance, dist_K; factor=10, steps=
     priorSample = rand(dist_prior, N)
 
     for t in 1:steps
-        priorSample, priorLogW = abc_smc_step(dist_prior, priorSample, priorLogW, simulate_and_distance, dist_K; factor=factor)
+        priorSample, priorLogW = abc_smc_step(N, dist_prior, priorSample, priorLogW, simulate_and_distance, dist_K; factor=factor)
     end
 
-    return priorSample[:, sample(1:N, Weights(exp.(priorLogW)), N)]
+    return priorSample[:, sample(1:length(priorLogW), Weights(exp.(priorLogW)), N)]
 end
 
 #TODO: allow/force? in place version of `simulate_and_distance` to reduce memory usage for y_sim
@@ -29,7 +29,7 @@ end
 
 
 """
-    abc_smc_step(dist_prior, priorSample::AbstractMatrix, priorLogW::AbstractVector, simulate_and_distance, dist_K; factor=10)
+    abc_smc_step(N, dist_prior, priorSample::AbstractMatrix, priorLogW::AbstractVector, simulate_and_distance, dist_K; factor=10)
 Example
 ```julia
 # Pre compute (a bit verbose) https://discourse.julialang.org/t/precompute-some-values-of-a-function/82079/7?u=dmetivie
@@ -48,19 +48,19 @@ function simulate_distance(θ)
 end
 ```
 """
-function abc_smc_step(dist_prior, priorSample::AbstractMatrix, priorLogW::AbstractVector, simulate_and_distance, dist_K; factor=10)
-    N = size(priorSample, 2)
+function abc_smc_step(N, dist_prior, priorSample::AbstractMatrix, priorLogW::AbstractVector, simulate_and_distance, dist_K; factor=10)
+    Neff = size(priorSample, 2) # Neff can be different from N in some cases 
     prepared_dist_𝐊 = dist_K(priorSample, priorLogW)
 
     # Resample based on weights
     rw = exp.(priorLogW)
-    θstar = priorSample[:, sample(1:N, Weights(rw), N * factor)]
+    θstar = priorSample[:, sample(1:Neff, Weights(rw), N * factor)]
 
     # Propose new parameters
     prop = rand.([prepared_dist_𝐊(θ) for θ in eachcol(θstar)])
 
     # Compute distances
-    distances = [simulate_and_distance(p) for p in prop]
+    distances = simulate_and_distance.(prop)
     qCut = quantile(distances, 1 / factor)
 
     # Filter proposals
