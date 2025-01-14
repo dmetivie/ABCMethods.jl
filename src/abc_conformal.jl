@@ -2,7 +2,7 @@
 	MC_predict(model, X::AbstractArray{T}; n_samples=1000, kwargs...)
 For each X it returns `n_samples` monte carlo simulations where the randomness comes from the (Concrete)Dropout layers.
 """
-function MC_predict_MultiDim(model_state, X::AbstractArray, n_samples=1000; dev=gpu_device(), dim_out=model_state.model[end].layers[1].out_dims)
+function MC_predict_MultiDim(model_state, X::AbstractArray, n_samples=1000; dev=gpu_device(), dim_out=model_state.model[end].layers[1].out_dims, rescale = identity, rescale_var = identity)
     st = model_state.states
     ps = model_state.parameters
     model = model_state.model
@@ -19,10 +19,10 @@ function MC_predict_MultiDim(model_state, X::AbstractArray, n_samples=1000; dev=
 
         predictions, st = model(X_in, ps, st)
         θs_MC, logvars = predictions |> cpu_device()
-
+        θs_MC .= θs_MC |> rescale
         θ_hat = mean(θs_MC, dims=2) # predictive_mean 
         θ2_hat = mean(c * c' for c in eachcol(θs_MC)) # multidim
-        var_mean = Diagonal(mean(exp.(logvars), dims=2) |> vec) # aleatoric_uncertainty 
+        var_mean = Diagonal(mean(exp.(logvars), dims=2) |> rescale_var |> vec ) # aleatoric_uncertainty 
         total_var = θ2_hat - θ_hat * θ_hat' + var_mean # epistemic + aleatoric uncertainty
 
         mean_arr[:, i] .= θ_hat
