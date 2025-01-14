@@ -1,5 +1,9 @@
 """
-    ABC_SMC(N, dist_prior, simulate_and_distance, dist_K; factor=10, steps=15)
+    ABC_SMC(N, dist_prior, simulate_and_distance, dist_K; factor=10, steps=15, minNeff = 3)
+Perform the ABC-SMC algorithm. 
+- `N` particles (or less in some extreme cases) are selected at each `step`
+- `dist_prior`
+Inpired by the [SimBIID](https://cran.r-project.org/web/packages/SimBIID/index.html).
 ## MA2 Example
 ```julia
 dist_K(θ, arg...) = θ + randn(length(θ)) # simple perturbation
@@ -13,15 +17,19 @@ function simulate_and_distance(θ)
 end
 ```
 """
-function ABC_SMC(N, dist_prior, simulate_and_distance, dist_K; factor=10, steps=15)
-    priorLogW = log.(fill(1 / N, N))
-    priorSample = rand(dist_prior, N)
-
+function ABC_SMC(priorSample::AbstractMatrix, priorLogW::AbstractVector, N, dist_prior, simulate_and_distance, dist_K; factor=10, steps=15, minNeff = 3)
     for t in 1:steps
-        priorSample, priorLogW = abc_smc_step(N, dist_prior, priorSample, priorLogW, simulate_and_distance, dist_K; factor=factor)
+        priorSample, priorLogW = abc_smc_step(N, dist_prior, priorSample, priorLogW, simulate_and_distance, dist_K; factor=factor, minNeff = minNeff)
     end
 
     return priorSample[:, sample(1:length(priorLogW), Weights(exp.(priorLogW)), N)]
+end
+
+function ABC_SMC(N, dist_prior, simulate_and_distance, dist_K; factor=10, steps=15, minNeff = 3)
+    priorLogW = log.(fill(1 / N, N))
+    priorSample = rand(dist_prior, N)
+
+    return ABC_SMC(priorSample, priorLogW, N, dist_prior, simulate_and_distance, dist_K; factor=factor, steps=steps, minNeff = minNeff)
 end
 
 #TODO: allow/force? in place version of `simulate_and_distance` to reduce memory usage for y_sim
@@ -48,8 +56,9 @@ function simulate_distance(θ)
 end
 ```
 """
-function abc_smc_step(N, dist_prior, priorSample::AbstractMatrix, priorLogW::AbstractVector, simulate_and_distance, dist_K; factor=10)
+function abc_smc_step(N, dist_prior, priorSample::AbstractMatrix, priorLogW::AbstractVector, simulate_and_distance, dist_K; factor=10, minNeff = 3)
     Neff = size(priorSample, 2) # Neff can be different from N in some cases 
+    
     prepared_dist_𝐊 = dist_K(priorSample, priorLogW)
 
     # Resample based on weights
@@ -65,7 +74,13 @@ function abc_smc_step(N, dist_prior, priorSample::AbstractMatrix, priorLogW::Abs
 
     # Filter proposals
     θstarstar = prop[distances.<qCut]
-
+    # If extinction (or too few valid sample) -> resample from prior
+    #! 2 samples is the minimum but lead to posdev issues with MvNormal kernel
+    if length(θstarstar) < minNeff
+        Nnew = N*1000
+        @warn "Only $(length(θstarstar)) valid samples -> resampling from original prior Nnew = N*1000 = $Nnew"
+        return rand(dist_prior, Nnew), log.(fill(1 / Nnew, Nnew))
+    end
     # Compute log weights
     lw = [compute_lw(θ, priorSample, priorLogW, dist_prior, prepared_dist_𝐊) for θ in θstarstar]
 
