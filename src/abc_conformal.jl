@@ -1,6 +1,9 @@
 """
-	MC_predict(model, X::AbstractArray{T}; n_samples=1000, kwargs...)
-For each X it returns `n_samples` monte carlo simulations where the randomness comes from the (Concrete)Dropout layers.
+	MC_predict_MultiDim(model_state, X::AbstractArray, n_samples=1000; dev=gpu_device(), dim_out=model_state.model[end].layers[1].out_dims, rescale = identity, rescale_var = identity)
+For a `model_state` returning a value and associated `logvar`, this function computes for each slice of `X`
+
+- the mean of `n_samples` Monte Carlo simulations where the randomness comes from the (Concrete)Dropout layers.
+- The overall covariance uncertainty sum of aleatoric (Diagonal matrix of the `exp(logvar term)`) and epistemic uncertainty (classic covariance matrix). This uncertainty as the dimension of a variance.
 """
 function MC_predict_MultiDim(model_state, X::AbstractArray, n_samples=1000; dev=gpu_device(), dim_out=model_state.model[end].layers[1].out_dims, rescale = identity, rescale_var = identity)
     st = model_state.states
@@ -32,6 +35,13 @@ function MC_predict_MultiDim(model_state, X::AbstractArray, n_samples=1000; dev=
     return mean_arr, var_dev_arr
 end
 
+"""
+    MC_predict(model_state, X::AbstractArray, n_samples=1000; dev=gpu_device(), dim_out=model_state.model[end].layers[1].out_dims)
+For a `model_state` returning a value and associated `logvar`, this function computes for each slice of `X`
+
+- the mean of `n_samples` Monte Carlo simulations where the randomness comes from the (Concrete)Dropout layers.
+- The overall uncertainty sum of aleatoric (`exp(logvar)`) and epistemic (classic `std`) uncertainty. This uncertainty as the dimension of a standard deviation.
+"""
 function MC_predict(model_state, X::AbstractArray, n_samples=1000; dev=gpu_device(), dim_out=model_state.model[end].layers[1].out_dims)
     st = model_state.states
     ps = model_state.parameters

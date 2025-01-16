@@ -1,22 +1,30 @@
 # ABCMethods
 
-A julia package to use easily the ABC-Conformal method described in the paper[^paper]. It use Approximate Bayesian Computation (ABC) with deep learning and conformal prediction.
-It is **loglikelihood free** bayesian method and to authors knowledge it is the first ABC-like method without summary statistics. 
+A Julia package featuring various ABC methods. 
 
-This package also implement the classic ABC method and the ABC method described in [Åkesson et al. - 2021](https://ieeexplore.ieee.org/abstract/document/9525290).
+The package is currently NOT in the Julia general registry (will be soon), but on a local registry, hence to download it just add:
 
-[^paper]: Meili Baragatti, Bertrand Cloez, David Métivier, Isabelle Sanchez. Approximate Bayesian Computation with Deep Learning and Conformal prediction.  	
-[https://doi.org/10.48550/arXiv.2406.04874](https://doi.org/10.48550/arXiv.2406.04874). 2024
+```julia
+using Pkg
+pkg"registry add https://github.com/dmetivie/LocalRegistry"
+```
 
-# License
+and then `add` it as a normal package
 
-GPL-3 License INRAE MISTEA 2024
+```julia
+Pkg.add("ABCMethods")
+# or
+pkg> add ABCMethods
+```
 
-# Authors
+This package implements 
 
-An article written by:
+- Classic ABC: See the historical paper [Pritchard et al. - 1999](https://academic.oup.com/mbe/article/16/12/1791/2925409)
 
-* @meili.baragatti Institut Agro [web site](https://meilibaragatti.fr/index.php)
-* @bertrand.cloez INRAE MISTEA [web site](https://sites.google.com/view/bertrandcloez)
-* @david.metivier INRAE MISTEA [web site](https://davidmetivier.mistea.inrae.fr/)
-* @isabelle.sanchez INRAE MISTEA [web site](https://mistea.pages.mia.inra.fr/isabellesanchez/)
+- ABC-SMC: A sequential Monte Carlo version of the classic ABC method [Moral et al. - 2012](https://link.springer.com/article/10.1007/s11222-011-9271-y). Note that this is the only method not using a reference table for training.
+
+- ABC-CNN: ABC method as described by [Åkesson et al. - 2021](https://ieeexplore.ieee.org/abstract/document/9525290).
+
+- ABC-Conformal: ABC method completely free of summary statistics and threshold selection as described in [Baragatti et al. - 2024](https://arxiv.org/abs/2406.04874). It use Approximate Bayesian Computation (ABC) with deep learning and conformal prediction.
+
+Example of applications can be found in Quarto notebooks attached with the paper. In particular for the MA(2) example [see here](https://forgemia.inra.fr/mistea/codes_articles/abcdconformal/-/tree/main/julia/MA2) (we should have a better display soon).
