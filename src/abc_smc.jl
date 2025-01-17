@@ -66,7 +66,13 @@ function abc_smc_step(N, dist_prior, priorSample::AbstractMatrix, priorLogW::Abs
     θstar = priorSample[:, sample(1:Neff, Weights(rw), N * factor)]
 
     # Propose new parameters
-    prop = rand.([prepared_dist_𝐊(θ) for θ in eachcol(θstar)])
+    prop = map(eachcol(θstar)) do θ
+        inprior = false
+        while !inprior
+            t = rand(prepared_dist_𝐊(θ))
+            inprior = insupport(dist_prior, t)
+        end
+    end
 
     # Compute distances
     distances = simulate_and_distance.(prop)
