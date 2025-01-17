@@ -1,7 +1,7 @@
 name = "ABCMethods"
 uuid = "6a06312b-1f35-42d8-b2e0-a51b61531d54"
 authors = ["David Métivier <david.metivier@inrae.fr>"]
-version = "1.1.1"
+version = "1.1.2"
 
 [deps]
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
@@ -17,11 +17,11 @@ Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
 
 [compat]
-Distributions = "0.25.116"
+Distributions = "0.25"
 HighestDensityRegions = "0.2"
 KernelDensity = "0.6"
 LinearAlgebra = "1"
-LogExpFunctions = "0.3.29"
+LogExpFunctions = "0.3"
 Lux = "1"
 julia = "1"
 
