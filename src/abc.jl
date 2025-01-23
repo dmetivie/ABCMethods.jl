@@ -26,11 +26,13 @@ struct ABC_NearestNeighboursL2{T,F} <: AbstractABC
 end
 
 """
-
+    ABC_selection(y::AbstractArray, ys_sample::AbstractArray, θ_sample, abc::ABC_NearestNeighboursL2; dims=ndims(ys_sample))
+    ABC_selection(ys::AbstractArray{T,dim}, ys_sample::AbstractArray{T,dim}, θ_sample, abc::ABC_NearestNeighbours; dims=dim, all_samples=true) where {T,dim}
+    ABC_selection(ys::AbstractArray{T,dim}, ys_sample::AbstractArray{T,dim}, θ_sample, abc::ABC_NearestNeighboursL2; dims=dim) where {T,dim}
 Select the `K×α` closest samples from `y` in `ys_sample`. Returns the associated `θ_sample`.
 
 `dims`: let you choose which dimension samples are concatenated.
-`all`: if `true`, consider that `η` applies to all sample at once (relevant for neural network `η`). 
+`all_samples`: if `true`, consider that `η` applies to all sample at once (relevant for neural network `η`). 
 if `false` apply to each sample separetly.
 """
 function ABC_selection(y::AbstractArray, ys_sample::AbstractArray, θ_sample, abc::ABC_NearestNeighboursL2; dims=ndims(ys_sample))
@@ -45,12 +47,12 @@ function ABC_selection(y::AbstractArray, ys_sample::AbstractArray, θ_sample, ab
     return θ_sample[:, best]
 end
 
-function ABC_selection(ys::AbstractArray{T,dim}, ys_sample::AbstractArray{T,dim}, θ_sample, abc::ABC_NearestNeighbours; dims=dim, all_samples=true) where {T,dim}
+function ABC_selection(ys::AbstractArray{T,dim}, ys_sample::AbstractArray{T,dim}, θ_sample, abc::ABC_NearestNeighbours; dims=dim, all_samples=true, dropdim = false) where {T,dim}
     if all_samples
         η_obs = abc.η(ys)
         η_samples = abc.η(ys_sample)
     else
-        ηall(X) = reduce(hcat, [abc.η(x) for x in eachslice(X, dims=dims)])
+        ηall(X) = reduce(hcat, [abc.η(x) for x in eachslice(X, dims=dims, drop = dropdim)])
         η_obs = ηall(ys)
         η_samples = ηall(ys_sample)
     end
@@ -61,6 +63,10 @@ function ABC_selection(ys::AbstractArray{T,dim}, ys_sample::AbstractArray{T,dim}
     return [ABC_selection(y, ys_sample, θ_sample, ABC_NearestNeighboursL2(abc.α, abc.∇); dims=dims) for y in eachslice(ys, dims=dims)]
 end
 
+"""
+    ABC2df(results, θ_test; q_min=0.025, q_max=0.975)    
+Compute the mean posterior estimate and the associate confidance interval.    
+"""
 function ABC2df(results, θ_test; q_min=0.025, q_max=0.975)
     θs_hat = reduce(hcat, mean.(results, dims=2))
     qs_min = reduce(hcat, [[quantile(r, q_min) for r in eachrow(S)] for S in results])
