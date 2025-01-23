@@ -107,16 +107,22 @@ Compute the volume of a circle/sphere of radius `radius` definied by the set of 
 
 In 2D: V = π a b = π r^2 λ₁^(-1/2) λ₂^(-1/2)
 In 3D: V = 4π/3 a b c = 4π/3 r^2 λ₁^(-1/2) λ₂^(-1/2) λ₃^(-1/2)
+and so on.
 """
 function ellipsoid_area(Σ, radius)
     n = size(Σ, 1)
     vals = eigvals(inv(Σ))
-    if n == 3
-        f = 4/3
-    elseif n ==2
-        f = 1
+    return radius^n*unit_sphere_volume(n)*prod(vals.^(-1/2))
+end
+
+function unit_sphere_volume(n)
+    if n == 0
+        return 1  # Volume of a 0-dimensional sphere is 1 (a point)
+    elseif n == 1
+        return 2  # Volume of a 1-dimensional sphere is 2 (a line segment of length 2)
+    else
+        return 2π / n * unit_sphere_volume(n - 2)
     end
-    return radius^n*f*π*prod(vals.^(-1/2))
 end
 
 """
