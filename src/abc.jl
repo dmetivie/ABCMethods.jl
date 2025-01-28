@@ -26,28 +26,28 @@ struct ABC_NearestNeighboursL2{T,F} <: AbstractABC
 end
 
 """
-    ABC_selection(y::AbstractArray, ys_sample::AbstractArray, θ_sample, abc::ABC_NearestNeighboursL2; dims=ndims(ys_sample))
-    ABC_selection(ys::AbstractArray{T,dim}, ys_sample::AbstractArray{T,dim}, θ_sample, abc::ABC_NearestNeighbours; dims=dim, all_samples=true) where {T,dim}
-    ABC_selection(ys::AbstractArray{T,dim}, ys_sample::AbstractArray{T,dim}, θ_sample, abc::ABC_NearestNeighboursL2; dims=dim) where {T,dim}
+    ABC_selection(y::AbstractArray, ys_sample::AbstractArray, θ_sample, abc::ABC_NearestNeighboursL2; dims=ndims(ys_sample), dropdim = true)
+    ABC_selection(ys::AbstractArray{T,dim}, ys_sample::AbstractArray{T,dim}, θ_sample, abc::ABC_NearestNeighbours; dims=dim, all_samples=true, dropdim = true) where {T,dim}
+    ABC_selection(ys::AbstractArray{T,dim}, ys_sample::AbstractArray{T,dim}, θ_sample, abc::ABC_NearestNeighboursL2; dims=dim, dropdim = true) where {T,dim}
 Select the `K×α` closest samples from `y` in `ys_sample`. Returns the associated `θ_sample`.
 
 `dims`: let you choose which dimension samples are concatenated.
 `all_samples`: if `true`, consider that `η` applies to all sample at once (relevant for neural network `η`). 
 if `false` apply to each sample separetly.
 """
-function ABC_selection(y::AbstractArray, ys_sample::AbstractArray, θ_sample, abc::ABC_NearestNeighboursL2; dims=ndims(ys_sample))
+function ABC_selection(y::AbstractArray, ys_sample::AbstractArray, θ_sample, abc::ABC_NearestNeighboursL2; dims=ndims(ys_sample), dropdim = true)
     N = size(ys_sample, dims) # last dims with samples
     @assert ndims(y) == ndims(ys_sample) - 1
 
     K = ceil(Int, N * abc.α)
-
-    distances = [sum(abs2, y - y_sample) for y_sample in eachslice(ys_sample, dims=dims)]
+    ∇ = Base.Fix2(abc.∇, y)
+    distances = [∇(y_sample) for y_sample in eachslice(ys_sample, dims=dims, drop = dropdim)]
 
     best = sortperm(distances)[1:K]
     return θ_sample[:, best]
 end
 
-function ABC_selection(ys::AbstractArray{T,dim}, ys_sample::AbstractArray{T,dim}, θ_sample, abc::ABC_NearestNeighbours; dims=dim, all_samples=true, dropdim = false) where {T,dim}
+function ABC_selection(ys::AbstractArray{T,dim}, ys_sample::AbstractArray{T,dim}, θ_sample, abc::ABC_NearestNeighbours; dims=dim, all_samples=true, dropdim = true) where {T,dim}
     if all_samples
         η_obs = abc.η(ys)
         η_samples = abc.η(ys_sample)
@@ -59,8 +59,8 @@ function ABC_selection(ys::AbstractArray{T,dim}, ys_sample::AbstractArray{T,dim}
     return ABC_selection(η_obs, η_samples, θ_sample, ABC_NearestNeighboursL2(abc.α, abc.∇); dims=ndims(η_samples))
 end
 
-function ABC_selection(ys::AbstractArray{T,dim}, ys_sample::AbstractArray{T,dim}, θ_sample, abc::ABC_NearestNeighboursL2; dims=dim) where {T,dim}
-    return [ABC_selection(y, ys_sample, θ_sample, ABC_NearestNeighboursL2(abc.α, abc.∇); dims=dims) for y in eachslice(ys, dims=dims)]
+function ABC_selection(ys::AbstractArray{T,dim}, ys_sample::AbstractArray{T,dim}, θ_sample, abc::ABC_NearestNeighboursL2; dims=dim, dropdim = true) where {T,dim}
+    return [ABC_selection(y, ys_sample, θ_sample, ABC_NearestNeighboursL2(abc.α, abc.∇); dims=dims, dropdim = dropdim) for y in eachslice(ys, dims=dims)]
 end
 
 """

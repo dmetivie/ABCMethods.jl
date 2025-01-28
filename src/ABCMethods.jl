@@ -12,7 +12,7 @@ using Base.Iterators: product
 using HighestDensityRegions, KernelDensity
 
 using LogExpFunctions: logsumexp
-using Distributions: logpdf
+using Distributions: logpdf, insupport
 
 include("abc.jl")
 include("abc_conformal.jl")
