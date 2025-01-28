@@ -11,12 +11,13 @@ function train_NN(train_state::TrainState, epochs, dataset, dataset_val, compute
     model = train_state.model
 
     ## Validation Loss
-    losses_train = Float32[]
+    floattype = eltype(x_val)
     x_val, y_val = dataset_val |> dev
-    losses_val = Float32[first(val_loss(model, ps, st, (x_val, y_val)))]
+    losses_train = floattype[]
+    losses_val = floattype[first(val_loss(model, ps, st, (x_val, y_val)))]
     # mse_loss_val = MSELoss()(first(first(model(x_val, ps, st))), y_val)
 
-    loss = rand(Float32) # just to define loss in outer loop scope # probably better ways to do that
+    loss = one(floattype) # just to define loss in outer loop scope # probably better ways to do that
     best_test_state = train_state
     # @info "Epoch 0                     validation_loss = $(round(losses_val[1], digits = 4)) mse_val_loss = $(round(mse_loss_val, digits = 4)) Best model so far"
     @info "Epoch 0                     validation_loss = $(round(losses_val[1], digits = 4)) Best model so far"
