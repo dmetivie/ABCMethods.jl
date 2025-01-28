@@ -24,10 +24,9 @@ function MC_predict_MultiDim(model_state, X::AbstractArray, n_samples=1000; dev=
         θs_MC, logvars = predictions |> cpu_device()
         θs_MC .= θs_MC |> rescale
         θ_hat = mean(θs_MC, dims=2) # predictive_mean 
-        θ2_hat = mean(c * c' for c in eachcol(θs_MC)) # multidim
+        epistemic = cov(θs_MC') # multidim
         var_mean = Diagonal(mean(exp.(logvars), dims=2) |> rescale_var |> vec ) # aleatoric_uncertainty 
-        total_var = θ2_hat - θ_hat * θ_hat' + var_mean # epistemic + aleatoric uncertainty
-
+        total_var = epistemic + var_mean # epistemic + aleatoric uncertainty
         mean_arr[:, i] .= θ_hat
         var_dev_arr[:, :, i] .= total_var
     end
@@ -62,9 +61,10 @@ function MC_predict(model_state, X::AbstractArray, n_samples=1000; dev=gpu_devic
 
         θ_hat = mean(θs_MC, dims=2) # predictive_mean 
 
-        θ2_hat = mean(θs_MC .^ 2, dims=2) # unidim (only variance on diagonals)
+        # θ2_hat = mean(θs_MC .^ 2, dims=2) # unidim (only variance on diagonals)
+        epistemic = [var(d) for d in eachrow(θs_MC)]
         var_mean = mean(exp.(logvars), dims=2) # aleatoric_uncertainty 
-        total_var = θ2_hat - θ_hat .^ 2 + var_mean
+        total_var = epistemic + var_mean
         std_dev = sqrt.(total_var)
 
         mean_arr[:, i] .= θ_hat
