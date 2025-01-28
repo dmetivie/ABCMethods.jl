@@ -152,8 +152,13 @@ function AreaABCEllipsoid(ABCresults::AbstractVector, thr)
     area = zeros(N)
     for (i, x) in enumerate(ABCresults)
         C = cov(x')
-        ## squared Mahalanobis distance
-        area[i] = ellipsoid_area(C, thr)
+        if isposdef(C)
+            ## squared Mahalanobis distance
+            area[i] = ellipsoid_area(C, thr)
+        else # singular case -> probably almost zero λ
+            @warn "i = $i -> singular covariance -> setting area to 0"
+            area[i] = 0
+        end
     end
     return area
 end
