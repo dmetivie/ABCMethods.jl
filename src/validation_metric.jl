@@ -16,4 +16,4 @@ function summary_method(df_result)
     end
 end
 
-𝕃2(x, y) = sum(abs2, x - y)
+𝕃2(x, y) = mean(abs2, x - y)
