@@ -11,8 +11,8 @@ function train_NN(train_state::TrainState, epochs, dataset, dataset_val, compute
     model = train_state.model
 
     ## Validation Loss
-    floattype = eltype(x_val)
     x_val, y_val = dataset_val |> dev
+    floattype = eltype(x_val)
     losses_train = floattype[]
     losses_val = floattype[first(val_loss(model, ps, st, (x_val, y_val)))]
     # mse_loss_val = MSELoss()(first(first(model(x_val, ps, st))), y_val)
