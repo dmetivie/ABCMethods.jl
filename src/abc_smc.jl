@@ -108,7 +108,7 @@ end
 
 # Helper function to compute log weights
 function compute_lw(θ, priorSample::AbstractMatrix, priorLogW::AbstractVector, dist_prior, dist_K)
-    terms = priorLogW .+ [logpdf(dist_K(θ), x) for x in eachcol(priorSample)]
+    terms = priorLogW .+ [logpdf(dist_K(x), θ) for x in eachcol(priorSample)]
     mt = maximum(terms)
     denom = mt + logsumexp(terms .- mt)
     return logpdf(dist_prior, θ) - denom
